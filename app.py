@@ -116,7 +116,7 @@ def process_docx(template_data, form_data):
     # Replace all placeholders
     for sureforms_field, word_placeholder in FIELD_MAPPING.items():
         value = form_data.get(sureforms_field, '')
-        placeholder = '{' + word_placeholder + '}'
+        placeholder = '${' + word_placeholder + '}'
         doc_xml = doc_xml.replace(placeholder, escape_xml(value))
     
     # Create new docx
