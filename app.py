@@ -113,7 +113,7 @@ def process_docx(template_data, form_data):
     template_zip = zipfile.ZipFile(io.BytesIO(template_data))
     doc_xml = template_zip.read('word/document.xml').decode('utf-8')
     
-    # Replace all placeholders
+    # Replace all placeholders - UPDATED TO USE ${} FORMAT
     for sureforms_field, word_placeholder in FIELD_MAPPING.items():
         value = form_data.get(sureforms_field, '')
         placeholder = '${' + word_placeholder + '}'
