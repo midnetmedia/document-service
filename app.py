@@ -113,11 +113,48 @@ def process_docx(template_data, form_data):
     template_zip = zipfile.ZipFile(io.BytesIO(template_data))
     doc_xml = template_zip.read('word/document.xml').decode('utf-8')
     
+    # DEBUG: Log first 1000 chars of template to see placeholder format
+    print("=== TEMPLATE SAMPLE (first 1000 chars) ===")
+    print(doc_xml[:1000])
+    print("=== END TEMPLATE SAMPLE ===")
+    
+    # DEBUG: Log form data keys
+    print("=== FORM DATA RECEIVED ===")
+    print(f"Number of fields: {len(form_data)}")
+    print(f"First 5 keys: {list(form_data.keys())[:5]}")
+    print(f"Sample values:")
+    for key in list(form_data.keys())[:3]:
+        print(f"  {key}: {form_data[key][:50] if form_data[key] else '(empty)')...")
+    print("=== END FORM DATA ===")
+    
+    # Count placeholders in template
+    print("=== SEARCHING FOR PLACEHOLDERS ===")
+    sample_placeholders = ['${SchoolName}', '{SchoolName}', '$SchoolName$']
+    for sample in sample_placeholders:
+        count = doc_xml.count(sample)
+        print(f"  Found {count} instances of '{sample}'")
+    print("=== END PLACEHOLDER SEARCH ===")
+    
+    replacements_made = 0
+    
     # Replace all placeholders - UPDATED TO USE ${} FORMAT
     for sureforms_field, word_placeholder in FIELD_MAPPING.items():
         value = form_data.get(sureforms_field, '')
         placeholder = '${' + word_placeholder + '}'
-        doc_xml = doc_xml.replace(placeholder, escape_xml(value))
+        
+        if value:  # Only log if there's a value
+            before_count = doc_xml.count(placeholder)
+            doc_xml = doc_xml.replace(placeholder, escape_xml(value))
+            after_count = doc_xml.count(placeholder)
+            
+            if before_count > 0:
+                print(f"✓ Replaced {before_count} instances of '{placeholder}' with '{value[:30]}...'")
+                replacements_made += before_count
+            elif before_count == 0 and len(value) > 0:
+                # Placeholder not found but we have data for it
+                print(f"⚠ Warning: '{placeholder}' not found in template but have value: '{value[:30]}...'")
+    
+    print(f"=== TOTAL REPLACEMENTS MADE: {replacements_made} ===")
     
     # Create new docx
     output = io.BytesIO()
@@ -175,6 +212,11 @@ def fill_document():
         )
     
     except Exception as e:
+        print(f"=== ERROR ===")
+        print(f"Error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        print(f"=== END ERROR ===")
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
