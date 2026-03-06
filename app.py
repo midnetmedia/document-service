@@ -131,7 +131,7 @@ def process_docx(template_data, form_data):
     print("=== BEFORE NORMALIZATION ===")
     print(f"Template length: {len(doc_xml)} chars")
     sample_placeholder_count = doc_xml.count('${SchoolName}')
-    print(f"Found ${SchoolName} before normalization: {sample_placeholder_count}")
+    print(f"Found ${{SchoolName}} before normalization: {sample_placeholder_count}")
     
     # Normalize XML to merge split placeholders
     doc_xml = normalize_xml_for_placeholders(doc_xml)
@@ -139,7 +139,7 @@ def process_docx(template_data, form_data):
     print("=== AFTER NORMALIZATION ===")
     print(f"Template length: {len(doc_xml)} chars")
     sample_placeholder_count = doc_xml.count('${SchoolName}')
-    print(f"Found ${SchoolName} after normalization: {sample_placeholder_count}")
+    print(f"Found ${{SchoolName}} after normalization: {sample_placeholder_count}")
     
     # Count total placeholders
     total_placeholders_found = 0
