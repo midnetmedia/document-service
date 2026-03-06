@@ -7,6 +7,7 @@ import zipfile
 import io
 import os
 import base64
+import re
 from datetime import datetime
 
 app = Flask(__name__)
@@ -107,54 +108,78 @@ def escape_xml(text):
     """Escape XML special characters"""
     return str(text).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('"', '&quot;').replace("'", '&#x2019;')
 
+def normalize_xml_for_placeholders(xml_content):
+    """
+    Remove Word's XML formatting that splits placeholders across multiple <w:t> tags.
+    Word often splits text when there's formatting, which breaks our placeholder replacement.
+    """
+    # Remove text run boundaries that might split placeholders
+    # This merges adjacent <w:t> tags within the same run
+    xml_content = re.sub(r'</w:t>(\s*)<w:t[^>]*>', r'\1', xml_content)
+    
+    # Also handle text runs with properties in between
+    xml_content = re.sub(r'</w:t></w:r><w:r[^>]*><w:t[^>]*>', '', xml_content)
+    
+    return xml_content
+
 def process_docx(template_data, form_data):
     """Fill Word template with form data"""
     # Open template
     template_zip = zipfile.ZipFile(io.BytesIO(template_data))
     doc_xml = template_zip.read('word/document.xml').decode('utf-8')
     
-    # DEBUG: Log first 1000 chars of template to see placeholder format
-    print("=== TEMPLATE SAMPLE (first 1000 chars) ===")
-    print(doc_xml[:1000])
-    print("=== END TEMPLATE SAMPLE ===")
+    print("=== BEFORE NORMALIZATION ===")
+    print(f"Template length: {len(doc_xml)} chars")
+    sample_placeholder_count = doc_xml.count('${SchoolName}')
+    print(f"Found ${SchoolName} before normalization: {sample_placeholder_count}")
     
-    # DEBUG: Log form data keys
-    print("=== FORM DATA RECEIVED ===")
-    print(f"Number of fields: {len(form_data)}")
-    print(f"First 5 keys: {list(form_data.keys())[:5]}")
-    print(f"Sample values:")
-    for key in list(form_data.keys())[:3]:
-        print(f"  {key}: {form_data[key][:50] if form_data[key] else '(empty)'}...")
-    print("=== END FORM DATA ===")
+    # Normalize XML to merge split placeholders
+    doc_xml = normalize_xml_for_placeholders(doc_xml)
     
-    # Count placeholders in template
-    print("=== SEARCHING FOR PLACEHOLDERS ===")
-    sample_placeholders = ['${SchoolName}', '{SchoolName}', '$SchoolName$']
-    for sample in sample_placeholders:
-        count = doc_xml.count(sample)
-        print(f"  Found {count} instances of '{sample}'")
-    print("=== END PLACEHOLDER SEARCH ===")
+    print("=== AFTER NORMALIZATION ===")
+    print(f"Template length: {len(doc_xml)} chars")
+    sample_placeholder_count = doc_xml.count('${SchoolName}')
+    print(f"Found ${SchoolName} after normalization: {sample_placeholder_count}")
+    
+    # Count total placeholders
+    total_placeholders_found = 0
+    for word_placeholder in FIELD_MAPPING.values():
+        placeholder = '${' + word_placeholder + '}'
+        count = doc_xml.count(placeholder)
+        total_placeholders_found += count
+    
+    print(f"Total placeholders found in template: {total_placeholders_found}")
+    
+    # DEBUG: Log form data
+    print("=== FORM DATA ===")
+    print(f"Number of fields received: {len(form_data)}")
+    non_empty_fields = sum(1 for v in form_data.values() if v)
+    print(f"Non-empty fields: {non_empty_fields}")
     
     replacements_made = 0
+    warnings = 0
     
-    # Replace all placeholders - UPDATED TO USE ${} FORMAT
+    # Replace all placeholders
     for sureforms_field, word_placeholder in FIELD_MAPPING.items():
         value = form_data.get(sureforms_field, '')
         placeholder = '${' + word_placeholder + '}'
         
-        if value:  # Only log if there's a value
+        if value:
             before_count = doc_xml.count(placeholder)
             doc_xml = doc_xml.replace(placeholder, escape_xml(value))
             after_count = doc_xml.count(placeholder)
             
             if before_count > 0:
-                print(f"✓ Replaced {before_count} instances of '{placeholder}' with '{value[:30]}...'")
+                print(f"✓ Replaced {before_count}x '{placeholder}' with '{value[:30]}...'")
                 replacements_made += before_count
-            elif before_count == 0 and len(value) > 0:
-                # Placeholder not found but we have data for it
-                print(f"⚠ Warning: '{placeholder}' not found in template but have value: '{value[:30]}...'")
+            else:
+                warnings += 1
+                if warnings <= 5:  # Only show first 5 warnings to avoid spam
+                    print(f"⚠ '{placeholder}' not found (have value: '{value[:20]}...')")
     
-    print(f"=== TOTAL REPLACEMENTS MADE: {replacements_made} ===")
+    print(f"=== SUMMARY ===")
+    print(f"Total replacements made: {replacements_made}")
+    print(f"Total warnings (placeholder not found): {warnings}")
     
     # Create new docx
     output = io.BytesIO()
