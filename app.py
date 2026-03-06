@@ -124,7 +124,7 @@ def process_docx(template_data, form_data):
     print(f"First 5 keys: {list(form_data.keys())[:5]}")
     print(f"Sample values:")
     for key in list(form_data.keys())[:3]:
-        print(f"  {key}: {form_data[key][:50] if form_data[key] else '(empty)')...")
+        print(f"  {key}: {form_data[key][:50] if form_data[key] else '(empty)'}...")
     print("=== END FORM DATA ===")
     
     # Count placeholders in template
